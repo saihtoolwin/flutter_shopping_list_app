@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:shopping_list/data/categories.dart';
 import 'package:shopping_list/models/category.dart';
+// import 'package:shopping_list/models/grocery_item.dart';
+import 'package:http/http.dart' as http;
 import 'package:shopping_list/models/grocery_item.dart';
 
 class NewItem extends StatefulWidget {
@@ -11,18 +15,41 @@ class NewItem extends StatefulWidget {
 }
 
 class _NewItemState extends State<NewItem> {
-  // _NewItemState({super.key});
-  final _formKey=GlobalKey<FormState>();
-  var _enterName='';
-  var _enterQuantity=1;
-  var _selectedCategory= categories[Categories.fruit]!;
+  final _formKey = GlobalKey<FormState>();
+  var _enterName = '';
+  var _enterQuantity = 1;
+  var _selectedCategory = categories[Categories.fruit]!;
+  var _isSending=false;
 
-  void _saveItem(){
-   if( _formKey.currentState!.validate()){
-    _formKey.currentState!.save();
-    Navigator.of(context).pop(GroceryItem(id: DateTime.now().toString(), name: _enterName, quantity: _enterQuantity, category: _selectedCategory));
-   };
+  void _saveItem() async {
+    if (_formKey.currentState!.validate()) {
+      _formKey.currentState!.save();
+      setState(() {
+        _isSending=true;
+      });
+      final url = Uri.https(
+        'shopping-list-flutter-ap-9b478-default-rtdb.firebaseio.com',
+        'shopping-list.json',
+      );
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': "application/json"},
+        body: json.encode({
+          'name': _enterName,
+          'quantity': _enterQuantity,
+          'category': _selectedCategory.title,
+        }),
+      );
+      final resData = json.decode(response.body);
+      if (!context.mounted) {
+        return;
+      }
+      // response.statusCode
+      Navigator.of(context).pop(GroceryItem(id: resData['name'], name: _enterName, quantity: _enterQuantity, category: _selectedCategory));
+    }
+    ;
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -45,8 +72,8 @@ class _NewItemState extends State<NewItem> {
                   }
                   return null;
                 },
-                onSaved: (value){
-                  _enterName=value!;
+                onSaved: (value) {
+                  _enterName = value!;
                 },
               ),
               Row(
@@ -66,8 +93,8 @@ class _NewItemState extends State<NewItem> {
                         }
                         return null;
                       },
-                      onSaved: (value){
-                        _enterQuantity=int.parse(value!);
+                      onSaved: (value) {
+                        _enterQuantity = int.parse(value!);
                       },
                     ),
                   ),
@@ -94,7 +121,7 @@ class _NewItemState extends State<NewItem> {
                       ],
                       onChanged: (value) {
                         setState(() {
-                        _selectedCategory=value!;
+                          _selectedCategory = value!;
                         });
                       },
                     ),
@@ -105,10 +132,17 @@ class _NewItemState extends State<NewItem> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(onPressed: () {
-                    _formKey.currentState!.reset();
-                  }, child: Text("Reset")),
-                  ElevatedButton(onPressed: _saveItem, child: Text("Add Item")),
+                  TextButton(
+                    onPressed: _isSending ? null : () {
+                      _formKey.currentState!.reset();
+                    },
+                    child: Text("Reset"),
+                  ),
+                  ElevatedButton(onPressed:_isSending ? null : _saveItem, child: _isSending ? SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(),
+                  ): Text("Add Item")),
                 ],
               ),
             ],
